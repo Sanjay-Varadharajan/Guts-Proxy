@@ -1,10 +1,10 @@
 package com.guts.proxy.service;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class ProxyService {
@@ -18,22 +18,43 @@ public class ProxyService {
         this.webClient = webClient;
     }
 
-    public String forwardRequest(
+    public ResponseEntity<String> forwardRequest(
             String path,
             HttpMethod method,
             HttpHeaders headers,
             String body
     ) {
 
-        String url = targetUrl + "/" + path;
+        String url = UriComponentsBuilder
+                .fromUriString(targetUrl)
+                .path(path)
+                .toUriString();
+
+        HttpHeaders safeHeaders = filterHeaders(headers);
 
         return webClient
                 .method(method)
                 .uri(url)
-                .headers(httpHeaders -> httpHeaders.addAll(headers))
+                .headers(h -> h.addAll(safeHeaders))
                 .bodyValue(body == null ? "" : body)
                 .retrieve()
-                .bodyToMono(String.class)
+                .toEntity(String.class)
                 .block();
+    }
+
+    private HttpHeaders filterHeaders(HttpHeaders original) {
+
+        HttpHeaders headers = new HttpHeaders();
+
+        original.forEach((key, value) -> {
+            if (!key.equalsIgnoreCase("host") &&
+                    !key.equalsIgnoreCase("content-length") &&
+                    !key.equalsIgnoreCase("connection") &&
+                    !key.equalsIgnoreCase("transfer-encoding")) {
+                headers.put(key, value);
+            }
+        });
+
+        return headers;
     }
 }

@@ -4,9 +4,8 @@ import com.guts.proxy.service.ProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 
@@ -20,28 +19,26 @@ public class ProxyController {
     }
 
     @RequestMapping("/**")
-    public String proxy(
+    public ResponseEntity<String> proxy(
             HttpServletRequest request,
             @RequestBody(required = false) String body
     ) throws IOException {
 
         String path = request.getRequestURI();
 
-        HttpMethod method =
-                HttpMethod.valueOf(request.getMethod());
+        String query = request.getQueryString();
+        if (query != null) {
+            path += "?" + query;
+        }
+
+        HttpMethod method = HttpMethod.valueOf(request.getMethod());
 
         HttpHeaders headers = new HttpHeaders();
 
         request.getHeaderNames().asIterator()
                 .forEachRemaining(header ->
-                        headers.add(header,
-                                request.getHeader(header)));
+                        headers.add(header, request.getHeader(header)));
 
-        return proxyService.forwardRequest(
-                path,
-                method,
-                headers,
-                body
-        );
+        return proxyService.forwardRequest(path, method, headers, body);
     }
 }
