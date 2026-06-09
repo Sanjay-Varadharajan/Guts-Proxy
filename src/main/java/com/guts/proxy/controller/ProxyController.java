@@ -1,7 +1,9 @@
 package com.guts.proxy.controller;
 
+import com.guts.proxy.extract.IpExtract;
 import com.guts.proxy.service.ProxyService;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
@@ -10,13 +12,15 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 
 @RestController
+@RequiredArgsConstructor
 public class ProxyController {
 
     private final ProxyService proxyService;
 
-    public ProxyController(ProxyService proxyService) {
-        this.proxyService = proxyService;
-    }
+    private final IpExtract ipExtract;
+
+
+
 
     @RequestMapping("/**")
     public ResponseEntity<String> proxy(
@@ -39,6 +43,14 @@ public class ProxyController {
                 .forEachRemaining(header ->
                         headers.add(header, request.getHeader(header)));
 
-        return proxyService.forwardRequest(path, method, headers, body);
+
+        String ip=ipExtract.extractClientIp(request);
+
+
+
+
+        return proxyService.forwardRequest(path, method, headers, body,ip);
     }
+
+
 }
