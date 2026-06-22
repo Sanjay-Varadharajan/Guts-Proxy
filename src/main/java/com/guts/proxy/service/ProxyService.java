@@ -1,15 +1,14 @@
 package com.guts.proxy.service;
 
-    import com.guts.proxy.extract.IpExtract;
-    import jakarta.servlet.http.HttpServletRequest;
-    import lombok.RequiredArgsConstructor;
-    import org.springframework.beans.factory.annotation.Value;
-    import org.springframework.http.*;
-    import org.springframework.stereotype.Service;
-    import org.springframework.web.reactive.function.client.WebClient;
-    import org.springframework.web.util.UriComponentsBuilder;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
-    import java.util.UUID;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,52 +34,48 @@ public class ProxyService {
 
         try {
 
+            // Build target URL
             UriComponentsBuilder builder = UriComponentsBuilder
                     .fromUriString(targetUrl)
                     .path(path);
 
-            //query param safely
             request.getParameterMap().forEach((key, values) -> {
                 for (String value : values) {
                     builder.queryParam(key, value);
                 }
             });
 
-
             String url = builder.build(true).toUriString();
 
             HttpHeaders safeHeaders = filterHeaders(headers);
 
-            ResponseEntity<String> response = webClient
+            // 🔥 TRUE PASS-THROUGH CALL (NO EXCEPTION ON 4xx/5xx)
+            ResponseEntity<String> iamResponse = webClient
                     .method(method)
                     .uri(url)
                     .headers(h -> h.addAll(safeHeaders))
                     .bodyValue(body == null ? "" : body)
-                    .exchangeToMono(clientResponse ->
-                            clientResponse.bodyToMono(String.class)
-                                    .map(responseBody ->
-                                            ResponseEntity
-                                                    .status(clientResponse.statusCode())
-                                                    .body(responseBody)
-                                    )
-                    )
+                    .exchangeToMono(response -> response.toEntity(String.class))
                     .block();
 
             long latency = System.currentTimeMillis() - startTime;
 
+            // log everything
             proxyLogService.saveLog(
                     requestId,
                     clientIp,
                     method.name(),
                     path,
                     url,
-                    response.getStatusCode().value(),
+                    iamResponse.getStatusCode().value(),
                     latency,
-                    true,
+                    iamResponse.getStatusCode().is2xxSuccessful(),
                     null
             );
-
-            return response;
+            return ResponseEntity
+                    .status(iamResponse.getStatusCode())
+                    .headers(iamResponse.getHeaders())
+                    .body(iamResponse.getBody());
 
         } catch (Exception ex) {
 
@@ -92,7 +87,7 @@ public class ProxyService {
                     method.name(),
                     path,
                     targetUrl + path,
-                    500,
+                    502,
                     latency,
                     false,
                     ex.getMessage()
@@ -100,7 +95,7 @@ public class ProxyService {
 
             return ResponseEntity
                     .status(HttpStatus.BAD_GATEWAY)
-                    .body("Proxy error while calling IAM service");
+                    .body("Proxy failed: " + ex.getMessage());
         }
     }
 
@@ -109,10 +104,10 @@ public class ProxyService {
         HttpHeaders headers = new HttpHeaders();
 
         original.forEach((key, value) -> {
-            if (!key.equalsIgnoreCase("host") &&
-                    !key.equalsIgnoreCase("content-length") &&
-                    !key.equalsIgnoreCase("connection") &&
-                    !key.equalsIgnoreCase("transfer-encoding")) {
+            if (!key.equalsIgnoreCase("host")
+                    && !key.equalsIgnoreCase("content-length")
+                    && !key.equalsIgnoreCase("connection")
+                    && !key.equalsIgnoreCase("transfer-encoding")) {
                 headers.put(key, value);
             }
         });
