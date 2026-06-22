@@ -1,0 +1,12 @@
+Client
+  ↓
+ProxyController
+  ↓
+ProxyService
+  ↓
+WebClient → IAM Backend
+  ↓
+ProxyService (logs + response)
+  ↓
+Client
+

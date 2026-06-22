@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class GutsProxyApplication {
 
 	public static void main(String[] args) {
-		Dotenv dotenv = Dotenv.configure()
+				Dotenv dotenv = Dotenv.configure()
 				.ignoreIfMissing()
 				.load();
 

@@ -30,10 +30,6 @@ public class ProxyController {
 
         String path = request.getRequestURI();
 
-        String query = request.getQueryString();
-        if (query != null) {
-            path += "?" + query;
-        }
 
         HttpMethod method = HttpMethod.valueOf(request.getMethod());
 
@@ -49,7 +45,7 @@ public class ProxyController {
 
 
 
-        return proxyService.forwardRequest(path, method, headers, body,ip);
+        return proxyService.forwardRequest(request,path, method, headers, body,ip);
     }
 
 
