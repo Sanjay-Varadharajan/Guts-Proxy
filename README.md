@@ -62,7 +62,7 @@ The proxy is designed to demonstrate core API gateway concepts used in microserv
 
 ## External Dependency
 
-- IAM Service (authentication and authorization provider)
+- Guts-IAM Service (authentication and authorization provider)
 
 ---
 
