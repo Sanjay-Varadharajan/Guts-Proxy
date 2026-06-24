@@ -1,6 +1,7 @@
 package com.guts.proxy.service;
 
 import com.guts.proxy.apigateway.Decision;
+import com.guts.proxy.apigateway.MasterKeyValidator;
 import com.guts.proxy.apigateway.RedisApiKeyValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class ProxyService {
 
     private final RedisApiKeyValidator apiKeyValidator;
+    private final MasterKeyValidator masterKeyValidator;
 
     private final ProxyLogService proxyLogService;
     private final WebClient webClient;
@@ -39,8 +41,38 @@ public class ProxyService {
 
         try {
 
-            if (!apiKeyValidator.isValid(apiKey)) {
+            boolean isApiKeyManagementEndpoint =
+                    path.startsWith("/api/v1/key/admin");
 
+            String masterKey = headers.getFirst("X-MASTER-KEY");
+
+            System.out.println("API KEY RECEIVED => " + apiKey);
+            System.out.println("MASTER KEY RECEIVED => " + masterKey);
+
+            if (isApiKeyManagementEndpoint) {
+
+                if (!masterKeyValidator.isValid(masterKey)) {
+
+                    proxyLogService.saveLog(
+                            requestId,
+                            clientIp,
+                            method.name(),
+                            path,
+                            "BLOCKED",
+                            403,
+                            0L,
+                            false,
+                            "Invalid Master Key",
+                            "MASTER_KEY",
+                            Decision.BLOCKED
+                    );
+
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("Invalid Master Key");
+                }
+
+            }
+                else if (apiKey == null || !apiKeyValidator.isValid(apiKey)){
                 proxyLogService.saveLog(
                         requestId,
                         clientIp,
@@ -59,8 +91,6 @@ public class ProxyService {
                         .body("Invalid API Key");
             }
 
-
-
             UriComponentsBuilder builder = UriComponentsBuilder
                     .fromUriString(targetUrl)
                     .path(path);
@@ -75,7 +105,6 @@ public class ProxyService {
 
             HttpHeaders safeHeaders = filterHeaders(headers);
 
-            // 🔥 TRUE PASS-THROUGH CALL (NO EXCEPTION ON 4xx/5xx)
             ResponseEntity<String> iamResponse = webClient
                     .method(method)
                     .uri(url)
@@ -86,7 +115,11 @@ public class ProxyService {
 
             long latency = System.currentTimeMillis() - startTime;
 
-            // log everything
+            String keyUsed = isApiKeyManagementEndpoint
+                    ? "MASTER_KEY"
+                    : apiKey;
+
+
             proxyLogService.saveLog(
                     requestId,
                     clientIp,
@@ -97,7 +130,7 @@ public class ProxyService {
                     latency,
                     iamResponse.getStatusCode().is2xxSuccessful(),
                     null,
-                    apiKey,
+                    keyUsed,
                     Decision.ALLOWED
             );
             return ResponseEntity

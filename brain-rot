@@ -10,3 +10,4 @@ ProxyService (logs + response)
   ↓
 Client
 
+String in Java is not serializable by JDK serializer the same way Object is->so you should explicitly serialize it

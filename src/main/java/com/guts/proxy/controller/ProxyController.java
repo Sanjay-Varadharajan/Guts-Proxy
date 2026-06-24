@@ -40,7 +40,10 @@ public class ProxyController {
                 .forEachRemaining(header ->
                         headers.add(header, request.getHeader(header)));
 
-        String apiKey=request.getHeader("x-api-key");
+        String apiKey = request.getHeader("X-API-KEY");
+        if (apiKey == null) {
+            apiKey = request.getHeader("x-api-key");
+        }
 
         String ip=ipExtract.extractClientIp(request);
 
