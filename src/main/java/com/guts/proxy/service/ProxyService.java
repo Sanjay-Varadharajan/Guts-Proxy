@@ -1,5 +1,7 @@
 package com.guts.proxy.service;
 
+import com.guts.proxy.apigateway.Decision;
+import com.guts.proxy.apigateway.RedisApiKeyValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +16,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProxyService {
 
+    private final RedisApiKeyValidator apiKeyValidator;
+
     private final ProxyLogService proxyLogService;
     private final WebClient webClient;
 
@@ -26,7 +30,8 @@ public class ProxyService {
             HttpMethod method,
             HttpHeaders headers,
             String body,
-            String clientIp
+            String clientIp,
+            String apiKey
     ) {
 
         String requestId = UUID.randomUUID().toString();
@@ -34,7 +39,28 @@ public class ProxyService {
 
         try {
 
-            // Build target URL
+            if (!apiKeyValidator.isValid(apiKey)) {
+
+                proxyLogService.saveLog(
+                        requestId,
+                        clientIp,
+                        method.name(),
+                        path,
+                        "BLOCKED",
+                        403,
+                        0L,
+                        false,
+                        "Invalid API Key",
+                        apiKey,
+                        Decision.BLOCKED
+                );
+
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("Invalid API Key");
+            }
+
+
+
             UriComponentsBuilder builder = UriComponentsBuilder
                     .fromUriString(targetUrl)
                     .path(path);
@@ -70,7 +96,9 @@ public class ProxyService {
                     iamResponse.getStatusCode().value(),
                     latency,
                     iamResponse.getStatusCode().is2xxSuccessful(),
-                    null
+                    null,
+                    apiKey,
+                    Decision.ALLOWED
             );
             return ResponseEntity
                     .status(iamResponse.getStatusCode())
@@ -90,7 +118,9 @@ public class ProxyService {
                     502,
                     latency,
                     false,
-                    ex.getMessage()
+                    ex.getMessage(),
+                    apiKey,
+                    Decision.ERROR
             );
 
             return ResponseEntity

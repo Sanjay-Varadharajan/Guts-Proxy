@@ -1,4 +1,4 @@
-package com.guts.proxy.config;
+package com.guts.proxy.config.jackson;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

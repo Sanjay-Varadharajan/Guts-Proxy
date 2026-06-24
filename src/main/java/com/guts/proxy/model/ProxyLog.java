@@ -1,5 +1,6 @@
 package com.guts.proxy.model;
 
+import com.guts.proxy.apigateway.Decision;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Data;
@@ -37,4 +38,8 @@ public class ProxyLog {
     private String errorMessage;
 
     private LocalDateTime loggedTime;
+
+    private String apiKey;
+
+    private Decision gatewayDecision;
 }

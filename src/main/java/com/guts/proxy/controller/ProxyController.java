@@ -40,13 +40,14 @@ public class ProxyController {
                 .forEachRemaining(header ->
                         headers.add(header, request.getHeader(header)));
 
+        String apiKey=request.getHeader("x-api-key");
 
         String ip=ipExtract.extractClientIp(request);
 
 
 
 
-        return proxyService.forwardRequest(request,path, method, headers, body,ip);
+        return proxyService.forwardRequest(request,path, method, headers, body,ip,apiKey);
     }
 
 

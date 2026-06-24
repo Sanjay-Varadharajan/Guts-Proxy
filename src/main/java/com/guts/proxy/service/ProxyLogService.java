@@ -1,5 +1,6 @@
 package com.guts.proxy.service;
 
+import com.guts.proxy.apigateway.Decision;
 import com.guts.proxy.model.ProxyLog;
 import com.guts.proxy.repository.ProxyLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,9 @@ public class ProxyLogService {
             Integer statusCode,
             Long latencyMs,
             Boolean success,
-            String errorMessage) {
+            String errorMessage,
+            String apiKey,
+            Decision gateWayDecision) {
 
         ProxyLog log = ProxyLog.builder()
                 .requestId(requestId)
@@ -35,6 +38,8 @@ public class ProxyLogService {
                 .success(success)
                 .errorMessage(errorMessage)
                 .loggedTime(LocalDateTime.now())
+                .apiKey(apiKey)
+                .gatewayDecision(gateWayDecision)
                 .build();
 
         proxyLogRepository.save(log);
