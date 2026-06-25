@@ -11,3 +11,5 @@ ProxyService (logs + response)
 Client
 
 String in Java is not serializable by JDK serializer the same way Object is->so you should explicitly serialize it
+
+problem->latency affects the rate limit cause rate limit is 5 request per second but a single request takes roughly 1200-1400ms so it fails so dumbass optimize the latency tmrw before eating

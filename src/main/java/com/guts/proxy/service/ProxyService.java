@@ -3,6 +3,7 @@ package com.guts.proxy.service;
 import com.guts.proxy.apigateway.Decision;
 import com.guts.proxy.apigateway.MasterKeyValidator;
 import com.guts.proxy.apigateway.RedisApiKeyValidator;
+import com.guts.proxy.ratelimit.RateLimiterService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,8 @@ public class ProxyService {
 
     private final ProxyLogService proxyLogService;
     private final WebClient webClient;
+    private final RateLimiterService rateLimiterService;
+
 
     @Value("${proxy.target-url}")
     private String targetUrl;
@@ -86,9 +89,29 @@ public class ProxyService {
                         apiKey,
                         Decision.BLOCKED
                 );
-
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body("Invalid API Key");
+            }
+
+              else if (!rateLimiterService.isAllowed(apiKey)){
+                long latency = System.currentTimeMillis() - startTime;
+
+                proxyLogService.saveLog(
+                requestId,
+                        clientIp,
+                        method.name(),
+                        path,
+                        "BLOCKED",
+                        429,
+                        latency,
+                        false,
+                        "Rate Limit Exceeded",
+                        apiKey,
+                        Decision.BLOCKED
+    );
+
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body("Rate Limit Exceeded");
             }
 
             UriComponentsBuilder builder = UriComponentsBuilder
@@ -115,6 +138,7 @@ public class ProxyService {
 
             long latency = System.currentTimeMillis() - startTime;
 
+
             String keyUsed = isApiKeyManagementEndpoint
                     ? "MASTER_KEY"
                     : apiKey;
@@ -137,6 +161,8 @@ public class ProxyService {
                     .status(iamResponse.getStatusCode())
                     .headers(iamResponse.getHeaders())
                     .body(iamResponse.getBody());
+
+
 
         } catch (Exception ex) {
 
