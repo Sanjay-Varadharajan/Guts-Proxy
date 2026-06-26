@@ -4,6 +4,7 @@ import com.guts.proxy.apigateway.Decision;
 import com.guts.proxy.apigateway.MasterKeyValidator;
 import com.guts.proxy.apigateway.RedisApiKeyValidator;
 import com.guts.proxy.ratelimit.RateLimiterService;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.UUID;
+import java.util.concurrent.*;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +27,72 @@ public class ProxyService {
     private final WebClient webClient;
     private final RateLimiterService rateLimiterService;
 
+    private final ExecutorService executor =
+            Executors.newVirtualThreadPerTaskExecutor();
 
     @Value("${proxy.target-url}")
     private String targetUrl;
 
+
     public ResponseEntity<String> forwardRequest(
+            HttpServletRequest request,
+            String path,
+            HttpMethod method,
+            HttpHeaders headers,
+            String body,
+            String clientIp,
+            String apiKey
+    ) {
+
+        long start = System.currentTimeMillis();
+
+        Future<ResponseEntity<String>> future = executor.submit(() ->
+                forwardRequestInternal(
+                        request,
+                        path,
+                        method,
+                        headers,
+                        body,
+                        clientIp,
+                        apiKey
+                )
+        );
+
+        try {
+
+            return future.get(5, TimeUnit.SECONDS);
+
+        }
+        catch (TimeoutException e) {
+
+            future.cancel(true);
+
+            proxyLogService.saveLog(
+                    UUID.randomUUID().toString(),
+                    clientIp,
+                    method.name(),
+                    path,
+                    targetUrl + path,
+                    504,
+                    System.currentTimeMillis()-start,
+                    false,
+                    "Request Timed Out",
+                    apiKey,
+                    Decision.ERROR
+            );
+
+            return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT)
+                    .body("Request timed out");
+        }
+        catch (Exception e) {
+
+            return ResponseEntity
+                    .status(HttpStatus.BAD_GATEWAY)
+                    .body("Proxy failed: " + e.getMessage());
+        }
+    }
+
+    private ResponseEntity<String> forwardRequestInternal(
             HttpServletRequest request,
             String path,
             HttpMethod method,
@@ -42,19 +105,22 @@ public class ProxyService {
         String requestId = UUID.randomUUID().toString();
         long startTime = System.currentTimeMillis();
 
+        boolean isApiKeyManagementEndpoint =
+                path.startsWith("/api/v1/key/admin");
+
+        String masterKey = headers.getFirst("X-MASTER-KEY");
+
+        String keyUsed = isApiKeyManagementEndpoint
+                ? "MASTER_KEY"
+                : apiKey;
+
         try {
-
-            boolean isApiKeyManagementEndpoint =
-                    path.startsWith("/api/v1/key/admin");
-
-            String masterKey = headers.getFirst("X-MASTER-KEY");
-
-            System.out.println("API KEY RECEIVED => " + apiKey);
-            System.out.println("MASTER KEY RECEIVED => " + masterKey);
 
             if (isApiKeyManagementEndpoint) {
 
                 if (!masterKeyValidator.isValid(masterKey)) {
+
+                    long latency = System.currentTimeMillis() - startTime;
 
                     proxyLogService.saveLog(
                             requestId,
@@ -63,10 +129,10 @@ public class ProxyService {
                             path,
                             "BLOCKED",
                             403,
-                            0L,
+                            latency,
                             false,
                             "Invalid Master Key",
-                            "MASTER_KEY",
+                            keyUsed,
                             Decision.BLOCKED
                     );
 
@@ -75,52 +141,64 @@ public class ProxyService {
                 }
 
             }
-                else if (apiKey == null || !apiKeyValidator.isValid(apiKey)){
-                proxyLogService.saveLog(
-                        requestId,
-                        clientIp,
-                        method.name(),
-                        path,
-                        "BLOCKED",
-                        403,
-                        0L,
-                        false,
-                        "Invalid API Key",
-                        apiKey,
-                        Decision.BLOCKED
-                );
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Invalid API Key");
+
+
+            else {
+
+                if (apiKey == null || !apiKeyValidator.isValid(apiKey)) {
+
+                    long latency = System.currentTimeMillis() - startTime;
+
+                    proxyLogService.saveLog(
+                            requestId,
+                            clientIp,
+                            method.name(),
+                            path,
+                            "BLOCKED",
+                            403,
+                            latency,
+                            false,
+                            "Invalid API Key",
+                            apiKey,
+                            Decision.BLOCKED
+                    );
+
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("Invalid API Key");
+                }
+
+
+                if (!rateLimiterService.isAllowed(apiKey)) {
+
+                    long latency = System.currentTimeMillis() - startTime;
+
+                    proxyLogService.saveLog(
+                            requestId,
+                            clientIp,
+                            method.name(),
+                            path,
+                            "BLOCKED",
+                            429,
+                            latency,
+                            false,
+                            "Rate Limit Exceeded",
+                            apiKey,
+                            Decision.BLOCKED
+                    );
+
+                    return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                            .body("Rate Limit Exceeded");
+                }
             }
 
-              else if (!rateLimiterService.isAllowed(apiKey)){
-                long latency = System.currentTimeMillis() - startTime;
-
-                proxyLogService.saveLog(
-                requestId,
-                        clientIp,
-                        method.name(),
-                        path,
-                        "BLOCKED",
-                        429,
-                        latency,
-                        false,
-                        "Rate Limit Exceeded",
-                        apiKey,
-                        Decision.BLOCKED
-    );
-
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body("Rate Limit Exceeded");
-            }
 
             UriComponentsBuilder builder = UriComponentsBuilder
                     .fromUriString(targetUrl)
                     .path(path);
 
-            request.getParameterMap().forEach((key, values) -> {
+            request.getParameterMap().forEach((k, values) -> {
                 for (String value : values) {
-                    builder.queryParam(key, value);
+                    builder.queryParam(k, value);
                 }
             });
 
@@ -138,12 +216,6 @@ public class ProxyService {
 
             long latency = System.currentTimeMillis() - startTime;
 
-
-            String keyUsed = isApiKeyManagementEndpoint
-                    ? "MASTER_KEY"
-                    : apiKey;
-
-
             proxyLogService.saveLog(
                     requestId,
                     clientIp,
@@ -157,12 +229,11 @@ public class ProxyService {
                     keyUsed,
                     Decision.ALLOWED
             );
+
             return ResponseEntity
                     .status(iamResponse.getStatusCode())
                     .headers(iamResponse.getHeaders())
                     .body(iamResponse.getBody());
-
-
 
         } catch (Exception ex) {
 
@@ -178,12 +249,11 @@ public class ProxyService {
                     latency,
                     false,
                     ex.getMessage(),
-                    apiKey,
+                    keyUsed,
                     Decision.ERROR
             );
 
-            return ResponseEntity
-                    .status(HttpStatus.BAD_GATEWAY)
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .body("Proxy failed: " + ex.getMessage());
         }
     }
@@ -202,5 +272,10 @@ public class ProxyService {
         });
 
         return headers;
+    }
+
+    @PreDestroy
+    public void shutdownExecutor() {
+        executor.shutdown();
     }
 }

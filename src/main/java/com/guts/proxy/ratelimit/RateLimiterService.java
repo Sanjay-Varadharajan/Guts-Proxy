@@ -25,7 +25,7 @@ public class RateLimiterService {
         System.out.println("Count rate = " + count);
 
         if (count!=null || count==1){
-            redisTemplate.expire(key, Duration.ofSeconds(5)); //timer of 1 seconds
+            redisTemplate.expire(key, Duration.ofSeconds(5)); //timer of 5 seconds
         }
 
         return count != null && count <= LIMIT;

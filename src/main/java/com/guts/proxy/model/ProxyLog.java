@@ -41,5 +41,6 @@ public class ProxyLog {
 
     private String apiKey;
 
+    @Enumerated(EnumType.STRING)
     private Decision gatewayDecision;
 }
