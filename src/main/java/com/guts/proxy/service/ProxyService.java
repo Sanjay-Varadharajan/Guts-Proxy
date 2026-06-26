@@ -275,7 +275,7 @@ public class ProxyService {
     }
 
     @PreDestroy
-    public void shutdownExecutor() {
+    public void shutdownExecutor() {  //destroy the executor when tomcat stops
         executor.shutdown();
     }
 }
