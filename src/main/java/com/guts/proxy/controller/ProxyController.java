@@ -1,57 +1,55 @@
-package com.guts.proxy.controller;
+    package com.guts.proxy.controller;
 
-import com.guts.proxy.extract.IpExtract;
-import com.guts.proxy.service.ProxyService;
-import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+    import com.guts.proxy.extract.IpExtract;
+    import com.guts.proxy.service.ProxyService;
+    import jakarta.servlet.http.HttpServletRequest;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.http.HttpHeaders;
+    import org.springframework.http.HttpMethod;
+    import org.springframework.http.ResponseEntity;
+    import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-import java.util.Map;
+    import java.io.IOException;
+    import java.util.Map;
 
-@RestController
-@RequiredArgsConstructor
-public class ProxyController {
+    @RestController
+    @RequiredArgsConstructor
+    public class ProxyController {
 
-    private final ProxyService proxyService;
+        private final ProxyService proxyService;
 
-    private final IpExtract ipExtract;
-
-
+        private final IpExtract ipExtract;
 
 
-    @RequestMapping("/**")
-    public ResponseEntity<String> proxy(
-            HttpServletRequest request,
-            @RequestBody(required = false) String body
-    ) throws IOException {
+        @RequestMapping("/**")
+        public ResponseEntity<?> proxy(
+                HttpServletRequest request,
+                @RequestBody(required = false) String body
+        ) throws IOException {
 
-        String path = request.getRequestURI();
+            String path = request.getRequestURI();
 
 
-        HttpMethod method = HttpMethod.valueOf(request.getMethod());
+            HttpMethod method = HttpMethod.valueOf(request.getMethod());
 
-        HttpHeaders headers = new HttpHeaders();
+            HttpHeaders headers = new HttpHeaders();
 
-        request.getHeaderNames().asIterator()
-                .forEachRemaining(header ->
-                        headers.add(header, request.getHeader(header)));
+            request.getHeaderNames().asIterator()
+                    .forEachRemaining(header ->
+                            headers.add(header, request.getHeader(header)));
 
-        String apiKey = request.getHeader("X-API-KEY");
-        if (apiKey == null) {
-            apiKey = request.getHeader("x-api-key");
+            String apiKey = request.getHeader("X-API-KEY");
+            if (apiKey == null) {
+                apiKey = request.getHeader("x-api-key");
+            }
+
+            String ip=ipExtract.extractClientIp(request);
+
+
+
+
+            return proxyService.forwardRequest(request,path, method, headers, body,ip,apiKey);
         }
 
-        String ip=ipExtract.extractClientIp(request);
 
-
-
-
-        return proxyService.forwardRequest(request,path, method, headers, body,ip,apiKey);
     }
-
-
-}

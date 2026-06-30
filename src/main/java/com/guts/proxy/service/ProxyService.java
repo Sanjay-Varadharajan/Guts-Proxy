@@ -34,7 +34,7 @@ public class ProxyService {
     private String targetUrl;
 
 
-    public ResponseEntity<String> forwardRequest(
+    public ResponseEntity<?> forwardRequest(
             HttpServletRequest request,
             String path,
             HttpMethod method,
@@ -46,7 +46,7 @@ public class ProxyService {
 
         long start = System.currentTimeMillis();
 
-        Future<ResponseEntity<String>> future = executor.submit(() ->
+        Future<ResponseEntity<?>> future = executor.submit(() ->
                 forwardRequestInternal(
                         request,
                         path,
@@ -92,7 +92,7 @@ public class ProxyService {
         }
     }
 
-    private ResponseEntity<String> forwardRequestInternal(
+    private ResponseEntity<?> forwardRequestInternal(
             HttpServletRequest request,
             String path,
             HttpMethod method,
@@ -206,12 +206,12 @@ public class ProxyService {
 
             HttpHeaders safeHeaders = filterHeaders(headers);
 
-            ResponseEntity<String> iamResponse = webClient
+            ResponseEntity<?> iamResponse = webClient
                     .method(method)
                     .uri(url)
                     .headers(h -> h.addAll(safeHeaders))
                     .bodyValue(body == null ? "" : body)
-                    .exchangeToMono(response -> response.toEntity(String.class))
+                    .exchangeToMono(response -> response.toEntity(byte[].class))
                     .block();
 
             long latency = System.currentTimeMillis() - startTime;
