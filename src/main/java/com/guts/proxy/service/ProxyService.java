@@ -1,5 +1,6 @@
 package com.guts.proxy.service;
 
+import com.guts.proxy.apigateway.AnalyticService;
 import com.guts.proxy.apigateway.Decision;
 import com.guts.proxy.apigateway.MasterKeyValidator;
 import com.guts.proxy.apigateway.RedisApiKeyValidator;
@@ -26,6 +27,8 @@ public class ProxyService {
     private final ProxyLogService proxyLogService;
     private final WebClient webClient;
     private final RateLimiterService rateLimiterService;
+
+    private final AnalyticService analyticService;
 
     private final ExecutorService executor =
             Executors.newVirtualThreadPerTaskExecutor();
@@ -168,6 +171,8 @@ public class ProxyService {
                 }
 
 
+
+
                 if (!rateLimiterService.isAllowed(apiKey)) {
 
                     long latency = System.currentTimeMillis() - startTime;
@@ -185,6 +190,9 @@ public class ProxyService {
                             apiKey,
                             Decision.BLOCKED
                     );
+
+                    analyticService.updateAnalytics(apiKey, 429);
+
 
                     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                             .body("Rate Limit Exceeded");
@@ -213,6 +221,17 @@ public class ProxyService {
                     .bodyValue(body == null ? "" : body)
                     .exchangeToMono(response -> response.toEntity(byte[].class))
                     .block();
+
+
+
+            if (!isApiKeyManagementEndpoint) {
+                analyticService.updateAnalytics(
+                        apiKey,
+                        iamResponse.getStatusCode().value()
+                );
+            }
+
+
 
             long latency = System.currentTimeMillis() - startTime;
 
@@ -252,6 +271,11 @@ public class ProxyService {
                     keyUsed,
                     Decision.ERROR
             );
+
+
+            if (!isApiKeyManagementEndpoint) {
+                analyticService.updateAnalytics(apiKey, 502);
+            }
 
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .body("Proxy failed: " + ex.getMessage());
