@@ -1,6 +1,6 @@
 package com.guts.proxy.service;
 
-import com.guts.proxy.apigateway.AnalyticService;
+import com.guts.proxy.apigateway.AnalyticOrchestrationService;
 import com.guts.proxy.apigateway.Decision;
 import com.guts.proxy.apigateway.MasterKeyValidator;
 import com.guts.proxy.apigateway.RedisApiKeyValidator;
@@ -28,7 +28,7 @@ public class ProxyService {
     private final WebClient webClient;
     private final RateLimiterService rateLimiterService;
 
-    private final AnalyticService analyticService;
+    private final AnalyticOrchestrationService analyticService;
 
     private final ExecutorService executor =
             Executors.newVirtualThreadPerTaskExecutor();
@@ -191,7 +191,7 @@ public class ProxyService {
                             Decision.BLOCKED
                     );
 
-                    analyticService.updateAnalytics(apiKey, 429);
+                    analyticService.updateAnalytics(apiKey, 429,targetUrl);
 
 
                     return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
@@ -227,7 +227,8 @@ public class ProxyService {
             if (!isApiKeyManagementEndpoint) {
                 analyticService.updateAnalytics(
                         apiKey,
-                        iamResponse.getStatusCode().value()
+                        iamResponse.getStatusCode().value(),
+                        path
                 );
             }
 
@@ -274,7 +275,7 @@ public class ProxyService {
 
 
             if (!isApiKeyManagementEndpoint) {
-                analyticService.updateAnalytics(apiKey, 502);
+                analyticService.updateAnalytics(apiKey, 502,path);
             }
 
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)

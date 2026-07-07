@@ -7,11 +7,11 @@ import java.time.LocalDateTime;
 
 @Service
 @AllArgsConstructor
-public class AnalyticService {
+public class AnalyticOrchestrationService {
 
    private final ApiKeyRepository apiKeyRepository;
 
-    public void updateAnalytics(String apiKey, int statusCode) {
+    public void updateAnalytics(String apiKey, int statusCode,String usedOn) {
 
         ApiKeyAnalytics analytics = apiKeyRepository.findByApiKey(apiKey)
                 .orElseGet(() -> {
@@ -20,6 +20,7 @@ public class AnalyticService {
                     a.setTotalRequests(0);
                     a.setSuccessfulRequests(0);
                     a.setFailedRequests(0);
+                    a.setUsedOn(usedOn);
                     return a;
                 });
 
