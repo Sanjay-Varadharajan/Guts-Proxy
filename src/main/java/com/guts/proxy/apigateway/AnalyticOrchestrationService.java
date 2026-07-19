@@ -12,7 +12,6 @@ public class AnalyticOrchestrationService {
    private final ApiKeyRepository apiKeyRepository;
 
     public void updateAnalytics(String apiKey, int statusCode,String usedOn) {
-
         ApiKeyAnalytics analytics = apiKeyRepository.findByApiKey(apiKey)
                 .orElseGet(() -> {
                     ApiKeyAnalytics a = new ApiKeyAnalytics();

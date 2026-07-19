@@ -4,12 +4,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ApiKeyRepository extends JpaRepository<ApiKeyAnalytics,Integer> {
 
     Optional<ApiKeyAnalytics> findByApiKey(String apiKey);
-
-    Page<ApiKeyAnalytics> findByApiKey(String apiKey, Pageable pageable);
-
 }

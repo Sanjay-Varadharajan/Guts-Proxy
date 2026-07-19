@@ -13,37 +13,24 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/analytics")
+@RequestMapping("/internals")
 public class AnalyticController {
 
 
    private final AnalyticsService analyticsService;
 
-    @GetMapping("/view")
-    public ResponseEntity<Page<ApiKeyAnalytics>> viewAnalyticByKey(@RequestParam String apiKey,
-                                                              @PageableDefault(
-                                                                      page = 0,
-                                                                      size = 10,
-                                                                      sort ="lastUsedAt",
-                                                                      direction = Sort.Direction.DESC)
-                                                                      Pageable pageable
-                                                                   ,
-                                                                   HttpServletRequest httpServletRequest
+    @GetMapping("/analytics")
+    public ResponseEntity<ApiKeyAnalyticsDto> viewAnalyticByKey(@RequestParam String apiKey
                                                               )throws BadRequestException {
 
 
 
-        Page<ApiKeyAnalytics> apiKeyAnalytics=analyticsService.viewAnalyticByKey(apiKey,pageable,httpServletRequest);
+        ApiKeyAnalyticsDto apiKeyAnalytics=analyticsService.viewAnalyticByKey(apiKey);
 
         return ResponseEntity.ok(apiKeyAnalytics);
-
-
-
-
-
-
     }
-
 }
