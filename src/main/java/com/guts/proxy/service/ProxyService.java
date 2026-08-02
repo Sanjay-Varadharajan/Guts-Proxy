@@ -28,6 +28,8 @@ public class ProxyService {
     private final WebClient webClient;
     private final RateLimiterService rateLimiterService;
 
+    private final IamClientService iamClientService;
+
     private final AnalyticOrchestrationService analyticService;
 
     private final ExecutorService executor =
@@ -95,7 +97,7 @@ public class ProxyService {
         }
     }
 
-    private ResponseEntity<?> forwardRequestInternal(
+    public ResponseEntity<?> forwardRequestInternal(
             HttpServletRequest request,
             String path,
             HttpMethod method,
@@ -213,14 +215,13 @@ public class ProxyService {
             String url = builder.build(true).toUriString();
 
             HttpHeaders safeHeaders = filterHeaders(headers);
-
-            ResponseEntity<?> iamResponse = webClient
-                    .method(method)
-                    .uri(url)
-                    .headers(h -> h.addAll(safeHeaders))
-                    .bodyValue(body == null ? "" : body)
-                    .exchangeToMono(response -> response.toEntity(byte[].class))
-                    .block();
+            ResponseEntity<byte[]> iamResponse =
+                    iamClientService.callIam(
+                            method,
+                            url,
+                            safeHeaders,
+                            body
+                    );
 
 
 
